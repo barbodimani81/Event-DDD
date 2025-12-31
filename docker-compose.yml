@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  # 1. The Cache
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - navatel-net
+
+  # 2. The Message Broker
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    ports:
+      - "5672:5672"   # App connection
+      - "15672:15672" # Web UI (http://localhost:15672)
+    networks:
+      - navatel-net
+
+  # 3. Your REST API
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "8080:8080"
+    environment:
+      - REDIS_ADDR=redis:6379          # "redis" matches service name above
+      - RABBIT_URL=amqp://guest:guest@rabbitmq:5672/
+    depends_on:
+      - redis
+      - rabbitmq
+    networks:
+      - navatel-net
+
+  # 4. Your Background Worker
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    environment:
+      - RABBIT_URL=amqp://guest:guest@rabbitmq:5672/
+    depends_on:
+      - rabbitmq
+      - api
+    networks:
+      - navatel-net
+
+networks:
+  navatel-net:
+    driver: bridge
